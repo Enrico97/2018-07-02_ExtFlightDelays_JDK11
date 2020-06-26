@@ -5,14 +5,19 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
+import it.polito.tdp.extflightdelays.model.Adiacenza;
 import it.polito.tdp.extflightdelays.model.Airline;
 import it.polito.tdp.extflightdelays.model.Airport;
 import it.polito.tdp.extflightdelays.model.Flight;
 
 public class ExtFlightDelaysDAO {
+	
+	Map<Integer, Airport> aereoporti = new HashMap<>();
 
 	public List<Airline> loadAllAirlines() {
 		String sql = "SELECT * from airlines";
@@ -51,6 +56,7 @@ public class ExtFlightDelaysDAO {
 						rs.getString("CITY"), rs.getString("STATE"), rs.getString("COUNTRY"), rs.getDouble("LATITUDE"),
 						rs.getDouble("LONGITUDE"), rs.getDouble("TIMEZONE_OFFSET"));
 				result.add(airport);
+				aereoporti.put(rs.getInt("ID"), airport);
 			}
 
 			conn.close();
@@ -80,6 +86,32 @@ public class ExtFlightDelaysDAO {
 						rs.getDouble("ELAPSED_TIME"), rs.getInt("DISTANCE"),
 						rs.getTimestamp("ARRIVAL_DATE").toLocalDateTime(), rs.getDouble("ARRIVAL_DELAY"));
 				result.add(flight);
+			}
+
+			conn.close();
+			return result;
+
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.out.println("Errore connessione al database");
+			throw new RuntimeException("Error Connection Database");
+		}
+	}
+	
+	public List<Adiacenza> archi(double dist) {
+		this.loadAllAirports();
+		String sql = "SELECT distinct a1.id as a1, a2.id as a2, AVG(f.distance) as dst FROM flights f, airports a1, airports a2 WHERE f.origin_airport_id=a1.id and f.destination_airport_id=a2.id or f.origin_airport_id=a2.id and f.destination_airport_id=a1.id GROUP BY a1.id, a2.id HAVING dst>?";
+		List<Adiacenza> result = new LinkedList<>();
+
+		try {
+			Connection conn = DBConnect.getConnection();
+			PreparedStatement st = conn.prepareStatement(sql);
+			st.setDouble(1, dist);
+			ResultSet rs = st.executeQuery();
+
+			while (rs.next()) {
+				Adiacenza a = new Adiacenza(aereoporti.get(rs.getInt("a1")), aereoporti.get(rs.getInt("a2")), rs.getDouble("dst"));
+				result.add(a);
 			}
 
 			conn.close();
